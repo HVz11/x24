@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14
+    container_name: send-smart-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: sendsmartuser
+      POSTGRES_PASSWORD: sendsmartpass
+      POSTGRES_DB: sendsmart
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - send-smart-network
+
+  # Redis Cache
+  redis:
+    image: redis:7
+    container_name: send-smart-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass sendsmartredis
+    volumes:
+      - redis-data:/data
+    networks:
+      - send-smart-network
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: send-smart-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management interface port
+    environment:
+      RABBITMQ_DEFAULT_USER: sendsmartuser
+      RABBITMQ_DEFAULT_PASS: sendsmartpass
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - send-smart-network
+
+  # Postal Mail Server
+  postal:
+    image: ghcr.io/postalserver/postal:2.0
+    container_name: send-smart-postal
+    hostname: postal.sendsmart.local
+    ports:
+      - "5000:5000"   # Web interface
+      - "25:25"       # SMTP port
+    environment:
+      - POSTAL_INITIALIZE=1
+      - POSTAL_WEB_HOSTNAME=postal.sendsmart.local
+      - POSTAL_SMTP_HOSTNAME=postal.sendsmart.local
+      - POSTAL_RABBITMQ_HOST=rabbitmq
+      - POSTAL_RABBITMQ_USER=sendsmartuser
+      - POSTAL_RABBITMQ_PASSWORD=sendsmartpass
+      - POSTAL_DB_HOST=postgres
+      - POSTAL_DB_DATABASE=postal
+      - POSTAL_DB_USERNAME=sendsmartuser
+      - POSTAL_DB_PASSWORD=sendsmartpass
+      - POSTAL_REDIS_HOST=redis
+      - POSTAL_REDIS_PASSWORD=sendsmartredis
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - send-smart-network
+
+  # Spring Boot Backend (uncomment once Dockerfile is ready)
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: send-smart-backend
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/sendsmart
+  #     - SPRING_DATASOURCE_USERNAME=sendsmartuser
+  #     - SPRING_DATASOURCE_PASSWORD=sendsmartpass
+  #     - SPRING_RABBITMQ_HOST=rabbitmq
+  #     - SPRING_RABBITMQ_PORT=5672
+  #     - SPRING_RABBITMQ_USERNAME=sendsmartuser
+  #     - SPRING_RABBITMQ_PASSWORD=sendsmartpass
+  #     - SPRING_REDIS_HOST=redis
+  #     - SPRING_REDIS_PORT=6379
+  #     - SPRING_REDIS_PASSWORD=sendsmartredis
+  #     - POSTAL_API_URL=http://postal:5000
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - rabbitmq
+  #     - postal
+  #   networks:
+  #     - send-smart-network
+
+  # React Frontend (uncomment once Dockerfile is ready)
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: send-smart-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - send-smart-network
+
+networks:
+  send-smart-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
